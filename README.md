@@ -82,7 +82,7 @@ project. This is an example of a configuration file:
 
 ```yaml
 backend: compose
-default:
+defaults:
   group: ${{ env.ENV }}
 groups:
   group1:
@@ -109,13 +109,13 @@ groups:
 Some examples of how to use it:
 
 - build the defaults services (service1,service3) for group1:
-  `sugar build --group group1`
+  `sugar compose build`
 
 - build the all services (there is no default service defined) for group2:
-  `sugar build --group group2`
+  `sugar compose build --all`
 
 - build all services (ignore default) for group1:
-  `sugar build --group group1 --all`
+  `sugar compose --group group1 --all`
 
 - start the default services for group1: `sugar ext start --group group1`
 
