@@ -1,22 +1,24 @@
-"""Sugar class for containers."""
+"""Sugar core libraries."""
 
 from __future__ import annotations
 
-from typing import Optional, Type, cast
+from typing import Dict, Type
 
 from sugar.extensions.base import SugarBase
 from sugar.extensions.compose import SugarCompose
 from sugar.extensions.compose_ext import SugarComposeExt
+from sugar.extensions.podman_compose import SugarPodmanCompose
+from sugar.extensions.podman_compose_ext import SugarPodmanComposeExt
+from sugar.extensions.stats import SugarStats
 
-try:
-    from sugar.extensions.stats import SugarStats
-except ImportError:
-    # SugarStats is optional (extras=tui)
-    SugarStats = cast(Optional[Type[SugarBase]], None)  # type: ignore
+# from sugar.extensions.swarm import SugarSwarm
 
-
-extensions: dict[str, Type[SugarBase]] = {
+# Extensions registry - maps extension name to extension class
+extensions: Dict[str, Type[SugarBase]] = {
     'compose': SugarCompose,
     'compose-ext': SugarComposeExt,
-    **{'stats': SugarStats for i in range(1) if SugarStats is not None},
+    'stats': SugarStats,
+    # 'swarm': SugarSwarm,
+    'podman-compose': SugarPodmanCompose,
+    'podman-compose-ext': SugarPodmanComposeExt,
 }
