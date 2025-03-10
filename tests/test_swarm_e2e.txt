@@ -1,0 +1,80 @@
+# import subprocess
+# import time
+# import unittest
+# import json
+# import os
+
+# class TestSwarmE2E(unittest.TestCase):
+#     @classmethod
+#     def setUpClass(cls):
+#         # Skip if not in CI environment and Docker may not be available
+#         if os.environ.get('CI') != 'true' and not os.environ.get('FORCE_DOCKER_TESTS'):
+#             raise unittest.SkipTest("Skipping Docker tests in non-CI environment")
+
+#         # Initialize swarm
+#         subprocess.run(["docker", "swarm", "init", "--advertise-addr", "127.0.0.1"], check=True)
+#         # Create test service
+#         subprocess.run(["docker", "service", "create", "--name", "test-service", "nginx:1.19"], check=True)
+#         # Wait for service to be running
+#         time.sleep(5)
+
+#     @classmethod
+#     def tearDownClass(cls):
+#         # Clean up
+#         try:
+#             subprocess.run(["docker", "service", "rm", "test-service"], check=True)
+#             subprocess.run(["docker", "swarm", "leave", "--force"], check=True)
+#         except Exception:
+#             pass  # Ignore cleanup failures
+
+#     def test_update_image(self):
+#         # Run update command to change image
+#         result = subprocess.run(["sugar", "swarm", "update", "--services", "test-service",
+#                                 "--image", "nginx:1.21"], check=True)
+#         self.assertEqual(result.returncode, 0)
+
+#         # Verify image was updated
+#         inspect = subprocess.check_output(
+#             ["docker", "service", "inspect", "test-service", "--format",
+#              "{{.Spec.TaskTemplate.ContainerSpec.Image}}"])
+#         self.assertIn(b"nginx:1.21", inspect)
+
+#     def test_update_replicas(self):
+#         # Update replicas count
+#         result = subprocess.run(["sugar", "swarm", "update", "--services", "test-service",
+#                                 "--replicas", "2"], check=True)
+#         self.assertEqual(result.returncode, 0)
+
+#         # Wait for replicas to be ready
+#         time.sleep(3)
+
+#         # Verify replicas were updated
+#         inspect = json.loads(subprocess.check_output(
+#             ["docker", "service", "inspect", "test-service"]).decode())
+#         self.assertEqual(inspect[0]["Spec"]["Mode"]["Replicated"]["Replicas"], 2)
+
+#     def test_update_env_variables(self):
+#         # Update environment variables
+#         result = subprocess.run(["sugar", "swarm", "update", "--services", "test-service",
+#                                 "--env_add", "DEBUG=1,ENVIRONMENT=test"], check=True)
+#         self.assertEqual(result.returncode, 0)
+
+#         # Verify env vars were added
+#         inspect = json.loads(subprocess.check_output(
+#             ["docker", "service", "inspect", "test-service"]).decode())
+#         env_vars = inspect[0]["Spec"]["TaskTemplate"]["ContainerSpec"]["Env"]
+#         self.assertTrue(any("DEBUG=1" in var for var in env_vars))
+#         self.assertTrue(any("ENVIRONMENT=test" in var for var in env_vars))
+
+#     def test_update_labels(self):
+#         # Add service labels
+#         result = subprocess.run(["sugar", "swarm", "update", "--services", "test-service",
+#                                 "--label_add", "env=prod,app=nginx"], check=True)
+#         self.assertEqual(result.returncode, 0)
+
+#         # Verify labels were added
+#         inspect = json.loads(subprocess.check_output(
+#             ["docker", "service", "inspect", "test-service"]).decode())
+#         labels = inspect[0]["Spec"]["Labels"]
+#         self.assertEqual(labels.get("env"), "prod")
+#         self.assertEqual(labels.get("app"), "nginx")

@@ -198,31 +198,95 @@ groups:
           SUGAR_FLAGS: --verbose --profile profile1
         run: |
           # Initialize swarm
-          sugar ${{ vars.SUGAR_FLAGS }} swarm init --options --advertise-addr 127.0.0.1
+          sugar ${{ vars.SUGAR_FLAGS }} swarm init --options "--advertise-addr 127.0.0.1"
+          echo "Swarm initialized successfully"
 
           # Test basic swarm commands
-          sugar ${{ vars.SUGAR_FLAGS }} ls
+          sugar ${{ vars.SUGAR_FLAGS }} swarm ls
 
-          # Test service commands
-          # Still below commands are in experimental stage
-          # sugar ${{ vars.SUGAR_FLAGS }} create --service my-nginx --options --name my-web nginx:latest
-          # sugar ${{ vars.SUGAR_FLAGS }} ls
-          # sugar ${{ vars.SUGAR_FLAGS }} inspect --services my-web
-          # sugar ${{ vars.SUGAR_FLAGS }} ps --services my-web
-          # sugar ${{ vars.SUGAR_FLAGS }} scale --services my-web --options my-web=2
-          # sugar ${{ vars.SUGAR_FLAGS }} update --services my-web --options --replicas 1
+          # Create a test service
+          docker service create --name test-web nginx:1.19
+          echo "Service created, waiting for startup..."
+          sleep 3
+
+          # Test inspection commands
+          sugar ${{ vars.SUGAR_FLAGS }} swarm inspect --services test-web
+
+          # Test update commands with various options
+          echo "Testing image update..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --image nginx:1.21
+          docker service inspect test-web --format "{{.Spec.TaskTemplate.ContainerSpec.Image}}" | grep "nginx:1.21"
+
+          echo "Testing replicas update..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --replicas 2
+          sleep 2
+          docker service ls | grep "test-web" | grep "2/2"
+
+          echo "Testing environment variables..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --env_add "DEBUG=1,LOG_LEVEL=info"
+          docker service inspect test-web --format "{{.Spec.TaskTemplate.ContainerSpec.Env}}" | grep "DEBUG=1"
+
+          echo "Testing labels..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --label_add "environment=testing,tier=frontend"
+          docker service inspect test-web --format "{{.Spec.Labels}}" | grep "environment"
+
+          echo "Testing force update..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --force
+
+          echo "Testing detached update..."
+          time sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --image nginx:1.22 --detach
+
+          # Test scaling
+          echo "Testing service scaling..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm scale --services test-web --replicas test-web=3
+          sleep 2
+          docker service ls | grep "test-web" | grep "3/3"
+
+          # Test rollback
+          echo "Testing service rollback..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm update --services test-web --image nginx:latest
+          sleep 2
+          sugar ${{ vars.SUGAR_FLAGS }} swarm rollback --services test-web
+
+          # Test logs
+          echo "Testing service logs..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm logs --services test-web --tail 10
 
           # Test node commands
-          sugar ${{ vars.SUGAR_FLAGS }} node ls
+          echo "Testing node commands..."
+          sugar ${{ vars.SUGAR_FLAGS }} swarm node --ls
           NODE_ID=$(docker node ls --format "{{.ID}}" | head -n1)
-          sugar ${{ vars.SUGAR_FLAGS }} node inspect --options $NODE_ID
-          sugar ${{ vars.SUGAR_FLAGS }} node ps --options $NODE_ID
+          echo "Node ID: $NODE_ID"
+          sugar ${{ vars.SUGAR_FLAGS }} swarm node --inspect $NODE_ID
+          sugar ${{ vars.SUGAR_FLAGS }} swarm node --ps $NODE_ID
+
+          # Create a stack for testing stack commands
+          echo "Testing stack commands..."
+          echo "version: '3'" > test-stack.yml
+          echo "services:" >> test-stack.yml
+          echo "  web:" >> test-stack.yml
+          echo "    image: nginx:alpine" >> test-stack.yml
+          echo "    deploy:" >> test-stack.yml
+          echo "      replicas: 1" >> test-stack.yml
+
+          # Deploy stack
+          sugar ${{ vars.SUGAR_FLAGS }} swarm create --stack test-stack --file test-stack.yml
+
+          # Test stack commands
+          sugar ${{ vars.SUGAR_FLAGS }} swarm ps --stack test-stack
+
+          # Remove stack
+          sugar ${{ vars.SUGAR_FLAGS }} swarm rm --stack test-stack
 
           # Clean up services
-          sugar ${{ vars.SUGAR_FLAGS }} rm --services my-web
+          docker service rm test-web
 
           # Leave swarm
           docker swarm leave --force
+          echo "All swarm tests completed successfully!"
+
+          # Clean up test files
+          rm -f test-stack.yml
 
       smoke-hooks:
         help: Run simple text for experimental commands

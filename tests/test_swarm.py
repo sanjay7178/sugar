@@ -226,6 +226,158 @@ class TestNodeErrorHandling:
             )
 
 
+class TestSwarmUpdate:
+    """Test the swarm update command."""
+
+    def test_update_basic(self, sugar_swarm: SugarSwarm) -> None:
+        """Test basic update command."""
+        # Setup _call_service_command mock
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        # Call update with image parameter
+        sugar_swarm._cmd_update(services='my-web', image='nginx:alpine')
+
+        # Verify the correct options were passed
+        mock.assert_called_once()
+        args = mock.call_args
+        assert (
+            'update' == args[0][0]
+        )  # First positional arg should be 'update'
+        assert ['my-web'] == args[1]['services']
+        assert '--image' in args[1]['options_args']
+        assert 'nginx:alpine' in args[1]['options_args']
+
+    def test_update_env_add(self, sugar_swarm: SugarSwarm) -> None:
+        """Test update with environment variables."""
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        sugar_swarm._cmd_update(
+            services='my-web', env_add='DEBUG=1,LOG_LEVEL=info'
+        )
+
+        args = mock.call_args
+        options_args = args[1]['options_args']
+        # Check that both env vars were added with their own --env-add flags
+        assert '--env-add' in options_args
+        assert 'DEBUG=1' in options_args
+        assert 'LOG_LEVEL=info' in options_args
+
+    def test_update_label_add(self, sugar_swarm: SugarSwarm) -> None:
+        """Test update with service labels."""
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        sugar_swarm._cmd_update(
+            services='my-web', label_add='env=prod,tier=frontend'
+        )
+
+        args = mock.call_args
+        options_args = args[1]['options_args']
+        # Check that labels were added correctly
+        assert '--label-add' in options_args
+        assert 'env=prod' in options_args
+        assert 'tier=frontend' in options_args
+
+    def test_update_flags(self, sugar_swarm: SugarSwarm) -> None:
+        """Test update with flag options."""
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        # Test all flags together
+        sugar_swarm._cmd_update(
+            services='my-web',
+            detach=True,
+            quiet=True,
+            force=True,
+            rollback=True,
+        )
+
+        args = mock.call_args
+        options_args = args[1]['options_args']
+        # Check that all flags were added
+        assert '--detach' in options_args
+        assert '--quiet' in options_args
+        assert '--force' in options_args
+        assert '--rollback' in options_args
+
+    def test_update_replicas(self, sugar_swarm: SugarSwarm) -> None:
+        """Test update with replicas."""
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        sugar_swarm._cmd_update(services='my-web', replicas='3')
+
+        args = mock.call_args
+        options_args = args[1]['options_args']
+        # Check replicas parameter is passed correctly
+        assert '--replicas' in options_args
+        assert '3' in options_args
+
+    def test_update_combined_options(self, sugar_swarm: SugarSwarm) -> None:
+        """Test update with multiple options combined."""
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        # Test combination of different option types
+        sugar_swarm._cmd_update(
+            services='my-web',
+            image='nginx:latest',
+            replicas='5',
+            env_add='DEBUG=1',
+            detach=True,
+            options='--with-registry-auth',  # Pass additional raw option
+        )
+
+        args = mock.call_args
+        options_args = args[1]['options_args']
+        # Check for all expected options
+        assert '--image' in options_args
+        assert 'nginx:latest' in options_args
+        assert '--replicas' in options_args
+        assert '5' in options_args
+        assert '--env-add' in options_args
+        assert 'DEBUG=1' in options_args
+        assert '--detach' in options_args
+        assert '--with-registry-auth' in options_args
+
+    def test_update_error_no_service(self, sugar_swarm: SugarSwarm) -> None:
+        """Test error when no service is specified."""
+        with patch(
+            'sugar.logs.SugarLogs.raise_error', side_effect=SystemExit
+        ) as mock_error:
+            with pytest.raises(SystemExit):
+                sugar_swarm._cmd_update(services='')
+
+            # Verify the correct error was raised
+            mock_error.assert_called_once_with(
+                """Service name must be provided for this command
+                (use --services service1,service2)""",
+                SugarError.SUGAR_INVALID_PARAMETER,
+            )
+
+
+class TestSwarmScale:
+    """Test the swarm scale command."""
+
+    def test_scale_basic(self, sugar_swarm: SugarSwarm) -> None:
+        """Test basic scale command."""
+        mock = MagicMock()
+        setattr(sugar_swarm, '_call_service_command', mock)
+
+        sugar_swarm._cmd_scale(services='my-web', replicas='my-web=3')
+
+        mock.assert_called_once()
+        args = mock.call_args
+        assert 'scale' == args[0][0]
+        # Check that service=replicas format was used
+        assert ['my-web=3'] == args[1]['services']
+
+
+# Similar tests for rollback and other commands...
+
+
 # Skip the CLI integration tests that are incomplete
 @pytest.mark.skip('CLI integration tests need implementation')
 class TestCLIIntegration:
